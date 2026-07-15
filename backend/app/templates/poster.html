@@ -1,0 +1,234 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: #d8d4c8;
+  }
+
+  .poster {
+    width: 1000px;
+    background: #f2ede1;
+    border: 3px solid #171512;
+    padding: 22px;
+    font-family: -apple-system, "Helvetica Neue", Arial, sans-serif;
+    color: #171512;
+  }
+
+  /* ---------- Album art + spine ---------- */
+
+  .art-section {
+    position: relative;
+    width: 100%;
+    aspect-ratio: 1 / 1;
+    overflow: hidden;
+    background: #171512;
+  }
+
+  .art-image {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+  }
+
+  .spine-bar {
+    position: absolute;
+    top: 0;
+    left: 0;
+    bottom: 0;
+    width: 64px;
+    background: #171512;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 20px 0;
+  }
+
+  .spine-letter {
+    color: #f2ede1;
+    font-family: Georgia, "Times New Roman", serif;
+    font-weight: 700;
+    font-size: 30px;
+    line-height: 1.08;
+    letter-spacing: 0.02em;
+  }
+
+  .spine-sep {
+    color: #a8a094;
+    font-size: 14px;
+    line-height: 2.2;
+  }
+
+  /* ---------- Divider rules ---------- */
+
+  .rule {
+    height: 2px;
+    background: #171512;
+    margin: 20px 0;
+  }
+
+  /* ---------- Title row + swatches ---------- */
+
+  .title-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 24px;
+  }
+
+  .title {
+    font-size: 46px;
+    font-weight: 800;
+    letter-spacing: -0.01em;
+    text-transform: uppercase;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .swatch-strip {
+    display: flex;
+    flex: 0 0 auto;
+    height: 34px;
+    border: 1.5px solid #171512;
+  }
+
+  .swatch {
+    width: 34px;
+    height: 100%;
+  }
+
+  /* ---------- Tracklist ---------- */
+
+  .tracklist {
+    display: flex;
+    gap: 48px;
+  }
+
+  .track-col {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 9px;
+  }
+
+  .track-row {
+    display: flex;
+    align-items: baseline;
+    gap: 14px;
+    font-size: 17px;
+  }
+
+  .track-num {
+    font-weight: 800;
+    color: #171512;
+    min-width: 26px;
+  }
+
+  .track-name {
+    text-transform: uppercase;
+    font-weight: 500;
+    letter-spacing: 0.01em;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  /* ---------- Footer ---------- */
+
+  .footer-row {
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+  }
+
+  .footer-meta {
+    font-size: 15px;
+    font-weight: 700;
+    letter-spacing: 0.03em;
+    text-transform: uppercase;
+    color: #4a4438;
+  }
+
+  .footer-deco {
+    display: flex;
+    align-items: flex-end;
+    gap: 3px;
+    height: 30px;
+  }
+
+  .footer-deco div {
+    width: 3px;
+    background: #171512;
+  }
+</style>
+</head>
+<body>
+
+  <div class="poster">
+
+    <div class="art-section">
+      <img class="art-image" src="{{ image_url }}">
+      <div class="spine-bar">
+        {% for line in spine_lines %}
+          {% if line.type == "letter" %}
+            <div class="spine-letter">{{ line.value }}</div>
+          {% else %}
+            <div class="spine-sep">{{ line.value }}</div>
+          {% endif %}
+        {% endfor %}
+      </div>
+    </div>
+
+    <div class="rule"></div>
+
+    <div class="title-row">
+      <div class="title">{{ title }}</div>
+      <div class="swatch-strip">
+        {% for color in palette %}
+          <div class="swatch" style="background: {{ color }};"></div>
+        {% endfor %}
+      </div>
+    </div>
+
+    <div class="rule"></div>
+
+    <div class="tracklist">
+      <div class="track-col">
+        {% for t in col1 %}
+          <div class="track-row">
+            <span class="track-num">{{ t.num_display }}</span>
+            <span class="track-name">{{ t.name }}</span>
+          </div>
+        {% endfor %}
+      </div>
+      <div class="track-col">
+        {% for t in col2 %}
+          <div class="track-row">
+            <span class="track-num">{{ t.num_display }}</span>
+            <span class="track-name">{{ t.name }}</span>
+          </div>
+        {% endfor %}
+      </div>
+    </div>
+
+    <div class="rule"></div>
+
+    <div class="footer-row">
+      <div class="footer-meta">{{ artist }} &bull; {{ year }}</div>
+      <div class="footer-deco">
+        {% for h in [14, 24, 10, 30, 18, 12, 26, 16, 22, 10, 28, 14, 20, 12, 24, 18, 10, 26, 16, 22] %}
+          <div style="height: {{ h }}px;"></div>
+        {% endfor %}
+      </div>
+    </div>
+
+  </div>
+
+</body>
+</html>
