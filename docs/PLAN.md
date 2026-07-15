@@ -5,12 +5,11 @@ The user wants to build a tool that connects to a user's Spotify account and gen
 
 ## Poster layout spec (from reference image)
 - Cream/off-white background, thin black poster border
-- Large square album cover filling ~65% of the top
+- Large square album cover filling ~65% of the top (album art is fetched as-is from Spotify; any badges/labels on the art are part of the image itself, not added by the tool)
 - Vertical black bar on the album art's left edge: album title spelled one letter per line, bold serif/display font, white-on-black, small diamond glyphs separating words
-- "PARENTAL ADVISORY EXPLICIT CONTENT" badge, bottom-right of the art, shown only if explicit
 - Thin rule → album title in large bold sans caps (left) + a horizontal strip of ~5 color swatches (the extracted dominant palette) on the same row, right-aligned
 - Thin rule → two-column numbered tracklist (bold track number + caps title), columns split ~ceil(n/2)/floor(n/2)
-- Footer: bottom-left "ARTIST NAME • YEAR"; bottom-right Spotify logo + a real scannable Spotify Code barcode for that album (via `scannables.scdn.co/uri/plain/png/{bg}/{bar}/640/{spotify_uri}`)
+- Footer: bottom-left "ARTIST NAME • YEAR"; bottom-right a wavy/decorative vertical bar pattern (Spotify Code-style visual, purely decorative — not a scannable code)
 
 ## Recommended architecture
 
@@ -80,7 +79,7 @@ The user wants to build a tool that connects to a user's Spotify account and gen
 8. **Polish (stretch)** — generation history, multi-time-range blended ranking, batch ZIP download, share links.
 
 ## Verification (once built)
-- Manual end-to-end run with a real Spotify test account: login → Ranked mode (multiple N and time_range values) → ColorSync mode (both with and without a seed album) → confirm poster visuals match the reference layout exactly (spine text, badge, swatch strip, 2-column tracklist, real scannable barcode) → confirm PNG download quality.
+- Manual end-to-end run with a real Spotify test account: login → Ranked mode (multiple N and time_range values) → ColorSync mode (both with and without a seed album) → confirm poster visuals match the reference layout exactly (spine text, swatch strip, 2-column tracklist, decorative wavy barcode) → confirm PNG download quality.
 - Unit tests for `ranking_service` (reciprocal-rank scoring against fixture top-tracks data) and `color_service` (CIEDE2000 distance/ranking against fixture palettes).
 - Confirm token refresh works by forcing an expired token and checking a subsequent API call transparently refreshes rather than erroring.
 - Confirm cross-origin cookie behavior in an actual deployed environment (Vercel + Fly.io), not just localhost, before considering auth done.
