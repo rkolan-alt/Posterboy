@@ -16,6 +16,15 @@ export default function CallbackPage() {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
+    // Spotify may redirect back with an error (?error=server_error, access_denied, etc.)
+    const params = new URLSearchParams(window.location.search)
+    const spotifyError = params.get('error')
+    if (spotifyError) {
+      setError(`Spotify returned an error: "${spotifyError}". Please try logging in again.`)
+      setLoading(false)
+      return
+    }
+
     const fetchUser = async () => {
       try {
         const userData = await getMe()

@@ -8,13 +8,13 @@ MAX_AGE_SECONDS = 86400 * 7  # 7 days
 
 def sign_user_id(user_id: str) -> str:
     """Sign a user ID into a session token."""
-    return signer.sign(user_id).decode() if isinstance(signer.sign(user_id), bytes) else signer.sign(user_id)
+    return signer.sign(user_id).decode()
 
 
 def verify_user_id(token: str, max_age: int = MAX_AGE_SECONDS) -> str:
     """Verify and extract user ID from a session token."""
     try:
-        return signer.unsign(token, max_age=max_age)
+        return signer.unsign(token, max_age=max_age).decode()
     except BadSignature:
         raise ValueError("Invalid or expired session token")
 
