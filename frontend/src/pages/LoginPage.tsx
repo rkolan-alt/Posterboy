@@ -10,7 +10,7 @@ export default function LoginPage() {
     // Check if already logged in
     getMe()
       .then(() => {
-        navigate('/callback')
+        navigate('/dashboard')
       })
       .catch(() => {
         setLoading(false)
