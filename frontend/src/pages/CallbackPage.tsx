@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { getMe } from '../lib/api'
+import { getMe, logout } from '../lib/api'
 
 interface User {
   id: string
@@ -53,6 +53,11 @@ export default function CallbackPage() {
     )
   }
 
+  const handleLogout = async () => {
+    await logout()
+    navigate('/')
+  }
+
   return (
     <div style={{ textAlign: 'center' }}>
       <h1>Welcome to Posterboy</h1>
@@ -63,6 +68,9 @@ export default function CallbackPage() {
         </>
       )}
       <p>This is a placeholder dashboard. More features coming soon!</p>
+      <button onClick={handleLogout} style={{ padding: '0.6em 1.5em', marginTop: '1em' }}>
+        Log out
+      </button>
     </div>
   )
 }

@@ -1,4 +1,6 @@
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:8000'
+// Empty base = same-origin relative requests, proxied to the backend by Vite
+// (see vite.config.ts). Keeps the session cookie first-party and CORS-free.
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || ''
 
 export async function apiCall(
   endpoint: string,
@@ -22,4 +24,8 @@ export async function getMe() {
     throw new Error('Failed to fetch user')
   }
   return response.json()
+}
+
+export async function logout() {
+  await apiCall('/auth/logout', { method: 'POST' })
 }
