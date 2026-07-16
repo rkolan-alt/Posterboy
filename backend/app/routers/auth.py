@@ -49,13 +49,23 @@ def callback(
     """Handle the OAuth redirect from Spotify: verify state, exchange the code, sign the user in."""
     # Spotify redirected back with an error (user denied, server_error, etc.)
     if error:
-        return RedirectResponse(f"{settings.frontend_url}/callback?error={error}", status_code=303)
+        resp = RedirectResponse(f"{settings.frontend_url}/callback?error={error}", status_code=303)
+        resp.delete_cookie("oauth_state")  # clear stale CSRF cookie so a retry starts clean
+        return resp
 
     if not code:
-        return RedirectResponse(f"{settings.frontend_url}/callback?error=missing_code", status_code=303)
+        resp = RedirectResponse(f"{settings.frontend_url}/callback?error=missing_code", status_code=303)
+        resp.delete_cookie("oauth_state")
+        return resp
 
-    # Verify state matches the CSRF cookie we set in /login
-    if not oauth_state or oauth_state != state:
+    # Verify state matches the CSRF cookie we set in /login.
+    # In local dev over http (cookie_secure=False), some browsers (e.g. Brave's
+    # bounce-tracking protection) strip the SameSite=Lax cookie during the
+    # cross-site redirect through Spotify, so it never comes back. In that case
+    # only, we tolerate a missing cookie. When the cookie IS present it must
+    # still match, and in production (cookie_secure=True) it is always required.
+    cookie_stripped_in_dev = oauth_state is None and not settings.cookie_secure
+    if not cookie_stripped_in_dev and (not oauth_state or oauth_state != state):
         raise HTTPException(status_code=400, detail="Invalid state parameter")
 
     try:

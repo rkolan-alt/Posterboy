@@ -1,9 +1,5 @@
 """
-Turns a raw, already-rank-ordered list of Spotify top tracks into a ranked
-list of albums, using reciprocal-rank scoring: a track at position i
-(0-indexed, most-listened first) contributes weight 1/(i+1) to its album.
-Weights are summed per album, so an album with several highly-ranked tracks
-scores higher than one with a single, lower-ranked track.
+Scoring strategies for ranking albums.
 """
 
 
@@ -28,5 +24,38 @@ def score_albums_from_top_tracks(tracks: list[dict]) -> list[dict]:
 
     return [
         {"album_id": album_id, "score": score, "track_count": track_counts[album_id]}
+        for album_id, score in ranked
+    ]
+
+
+def score_albums_from_library_tracks(tracks: list[dict]) -> list[dict]:
+    """
+    Rank albums by the frequency of songs from each album in the user's library.
+    Each track is counted once (deduplication by track ID).
+
+    tracks: List of Spotify track items (e.g., from saved tracks + playlists).
+            Each item must have track["album"]["id"].
+
+    Returns albums sorted by descending song count:
+        [{"album_id": str, "score": float, "track_count": int}, ...]
+    """
+    seen_track_ids = set()
+    scores: dict[str, int] = {}
+    track_counts: dict[str, int] = {}
+
+    for track in tracks:
+        track_id = track.get("id")
+        if not track_id or track_id in seen_track_ids:
+            continue
+        seen_track_ids.add(track_id)
+
+        album_id = track["album"]["id"]
+        scores[album_id] = scores.get(album_id, 0) + 1
+        track_counts[album_id] = track_counts.get(album_id, 0) + 1
+
+    ranked = sorted(scores.items(), key=lambda item: item[1], reverse=True)
+
+    return [
+        {"album_id": album_id, "score": float(score), "track_count": track_counts[album_id]}
         for album_id, score in ranked
     ]

@@ -6,8 +6,14 @@ from app.db.base import get_db
 from app.db.models import User, TopTracksCache, Album
 from app.core.deps import get_current_user
 from app.core.security import decrypt_token
-from app.services.spotify_service import get_top_tracks, get_albums
-from app.services.ranking_service import score_albums_from_top_tracks
+from app.services.spotify_service import (
+    get_top_tracks,
+    get_albums,
+    get_saved_tracks,
+    get_user_playlists,
+    get_playlist_tracks,
+)
+from app.services.ranking_service import score_albums_from_top_tracks, score_albums_from_library_tracks
 
 router = APIRouter(prefix="/library", tags=["library"])
 
@@ -64,6 +70,60 @@ def get_top_albums(
         )
 
     return {"time_range": time_range, "albums": albums_response}
+
+
+@router.get("/library-albums")
+def get_library_albums(
+    limit: int = Query(6, ge=1, le=6),
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Return the user's top N albums, ranked by frequency of songs in their library and playlists."""
+    access_token = decrypt_token(user.access_token_encrypted)
+
+    # Fetch all library tracks
+    saved_tracks = get_saved_tracks(access_token)
+
+    # Fetch all playlist tracks
+    all_playlist_tracks = []
+    playlists = get_user_playlists(access_token)
+    for playlist in playlists:
+        playlist_tracks = get_playlist_tracks(access_token, playlist["id"])
+        all_playlist_tracks.extend(playlist_tracks)
+
+    # Combine all tracks (deduplication happens in ranking function)
+    all_tracks = saved_tracks + all_playlist_tracks
+
+    if not all_tracks:
+        return {"albums": []}
+
+    ranked_albums = score_albums_from_library_tracks(all_tracks)
+    top_n = ranked_albums[:limit]
+
+    albums_by_id = _get_albums_cached(db, access_token, [entry["album_id"] for entry in top_n])
+
+    albums_response = []
+    for rank_position, entry in enumerate(top_n, start=1):
+        album = albums_by_id.get(entry["album_id"])
+        if album is None:
+            continue
+        albums_response.append(
+            {
+                "rank": rank_position,
+                "score": round(entry["score"], 4),
+                "track_count": entry["track_count"],
+                "album_id": album.id,
+                "name": album.name,
+                "artist_name": album.artist_name,
+                "release_date": album.release_date,
+                "image_url": album.image_url,
+                "total_tracks": album.total_tracks,
+                "tracklist": album.tracklist,
+                "spotify_uri": album.spotify_uri,
+            }
+        )
+
+    return {"albums": albums_response}
 
 
 def _get_top_tracks_cached(db: Session, user: User, time_range: str, access_token: str) -> list[dict]:

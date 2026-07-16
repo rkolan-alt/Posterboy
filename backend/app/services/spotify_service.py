@@ -4,11 +4,13 @@ from urllib.parse import urlencode
 from datetime import datetime, timedelta
 from app.core.config import settings
 
-SCOPE = "user-top-read user-read-private user-read-email"
+SCOPE = "user-top-read user-read-private user-read-email user-library-read playlist-read-private playlist-read-collaborative"
 AUTHORIZE_URL = "https://accounts.spotify.com/authorize"
 TOKEN_URL = "https://accounts.spotify.com/api/token"
 ME_URL = "https://api.spotify.com/v1/me"
 TOP_TRACKS_URL = "https://api.spotify.com/v1/me/top/tracks"
+SAVED_TRACKS_URL = "https://api.spotify.com/v1/me/tracks"
+PLAYLISTS_URL = "https://api.spotify.com/v1/me/playlists"
 ALBUMS_URL = "https://api.spotify.com/v1/albums"
 
 
@@ -118,3 +120,94 @@ def get_albums(access_token: str, album_ids: list[str]) -> list[dict]:
         albums.append(response.json())
 
     return albums
+
+
+def get_saved_tracks(access_token: str) -> list[dict]:
+    """Fetch all user's saved/liked tracks, handling pagination."""
+    all_tracks = []
+    offset = 0
+    limit = 50
+
+    while True:
+        response = httpx.get(
+            SAVED_TRACKS_URL,
+            headers={"Authorization": f"Bearer {access_token}"},
+            params={"offset": offset, "limit": limit},
+        )
+        response.raise_for_status()
+        data = response.json()
+
+        tracks = [item["track"] for item in data["items"] if item["track"]]
+        all_tracks.extend(tracks)
+
+        if len(data["items"]) < limit:
+            break
+        offset += limit
+
+    return all_tracks
+
+
+def get_user_playlists(access_token: str) -> list[dict]:
+    """Fetch all user's playlists (both private and public), handling pagination."""
+    all_playlists = []
+    offset = 0
+    limit = 50
+
+    while True:
+        response = httpx.get(
+            PLAYLISTS_URL,
+            headers={"Authorization": f"Bearer {access_token}"},
+            params={"offset": offset, "limit": limit},
+        )
+        response.raise_for_status()
+        data = response.json()
+
+        all_playlists.extend(data["items"])
+
+        if len(data["items"]) < limit:
+            break
+        offset += limit
+
+    return all_playlists
+
+
+def get_playlist_tracks(access_token: str, playlist_id: str) -> list[dict]:
+    """Fetch all tracks from a playlist, handling pagination.
+
+    Uses the current GET /playlists/{id}/items endpoint. The older /tracks
+    endpoint is deprecated and returns 403 for many apps. The /items response
+    nests each track under an "item" key (not "track"), so we normalize by
+    returning the inner track objects (each has "id" and "album").
+
+    Some playlists are not readable via the API (Spotify-curated/algorithmic
+    playlists, or playlists owned by other users with restricted access). Those
+    return 403/404 - we skip them and return whatever we've collected rather
+    than failing the whole library scan. Episodes/local files (which have no
+    album id) are filtered out.
+    """
+    all_tracks = []
+    offset = 0
+    limit = 100
+
+    while True:
+        response = httpx.get(
+            f"https://api.spotify.com/v1/playlists/{playlist_id}/items",
+            headers={"Authorization": f"Bearer {access_token}"},
+            params={"offset": offset, "limit": limit},
+        )
+        if response.status_code in (403, 404):
+            break  # playlist not accessible via API - skip it
+        response.raise_for_status()
+        data = response.json()
+
+        for entry in data["items"]:
+            track = entry.get("item")
+            # keep only real tracks that carry an album id (skips episodes/local files)
+            if track and track.get("type") == "track" and (track.get("album") or {}).get("id"):
+                all_tracks.append(track)
+
+        if len(data["items"]) < limit:
+            break
+        offset += limit
+
+    return all_tracks
