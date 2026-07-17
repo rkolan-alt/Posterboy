@@ -53,6 +53,30 @@ button:focus-visible {
   outline: 4px auto -webkit-focus-ring-color;
 }
 
+/* Primary action button (login, poster download), in Spotify's brand green.
+   Overrides the generic button rules above in both colour schemes, so it must
+   restate border-color to beat `button:hover`. */
+.btn-spotify {
+  background-color: #1db954;
+  color: #fff;
+  border-color: transparent;
+  font-weight: 600;
+  box-shadow: 0 0 12px rgba(29, 185, 84, 0.55);
+  transition: background-color 0.2s, box-shadow 0.2s;
+}
+.btn-spotify:hover:not(:disabled) {
+  background-color: #1ed760;
+  border-color: transparent;
+  box-shadow: 0 0 22px rgba(30, 215, 96, 0.85);
+}
+.btn-spotify:disabled {
+  background-color: #1db954;
+  border-color: transparent;
+  opacity: 0.5;
+  box-shadow: none;
+  cursor: default;
+}
+
 @media (prefers-color-scheme: light) {
   :root {
     color: #213547;
