@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { getMe } from '../lib/api'
 
 // Lands here right after the Spotify OAuth redirect. Confirms the session
-// took, then bounces to the real dashboard (which owns its own auth check).
+// took, then bounces to the mode chooser (which owns its own auth check).
 export default function CallbackPage() {
   const navigate = useNavigate()
   const [error, setError] = useState<string | null>(null)
@@ -18,7 +18,7 @@ export default function CallbackPage() {
     }
 
     getMe()
-      .then(() => navigate('/dashboard'))
+      .then(() => navigate('/modes'))
       .catch(() => setError('Failed to load user. Please try logging in again.'))
   }, [navigate])
 

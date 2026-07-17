@@ -131,7 +131,10 @@ export default function DashboardPage() {
             {user?.display_name || user?.spotify_user_id}
           </p>
         </div>
-        <button onClick={handleLogout}>Log out</button>
+        <div style={{ display: 'flex', gap: '0.5em' }}>
+          <button onClick={() => navigate('/modes')}>← Modes</button>
+          <button onClick={handleLogout}>Log out</button>
+        </div>
       </div>
 
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: '1em', alignItems: 'center', marginBottom: '1.5em' }}>

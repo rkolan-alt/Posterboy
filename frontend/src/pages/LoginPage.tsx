@@ -10,7 +10,7 @@ export default function LoginPage() {
     // Check if already logged in
     getMe()
       .then(() => {
-        navigate('/dashboard')
+        navigate('/modes')
       })
       .catch(() => {
         setLoading(false)
