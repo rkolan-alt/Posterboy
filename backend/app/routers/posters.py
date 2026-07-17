@@ -1,8 +1,9 @@
 from fastapi import APIRouter, Depends, HTTPException, Response
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.db.base import get_db
-from app.db.models import User, Album
+from app.db.models import User, Album, AlbumPalette
 from app.core.deps import get_current_user
 from app.services.color_service import get_dominant_colors
 from app.services.poster_service import build_poster_spec
@@ -19,8 +20,7 @@ def get_poster_spec(
 ):
     """Return the poster spec as JSON (for frontend preview rendering)."""
     album = _get_album_or_404(album_id, db)
-    palette = get_dominant_colors(album.image_url) if album.image_url else []
-    return build_poster_spec(album, palette)
+    return build_poster_spec(album, _get_palette_cached(db, album))
 
 
 @router.get("/{album_id}/render.png")
@@ -31,11 +31,31 @@ def render_poster(
 ):
     """Render the poster to a PNG via Playwright and stream it back."""
     album = _get_album_or_404(album_id, db)
-    palette = get_dominant_colors(album.image_url) if album.image_url else []
-    spec = build_poster_spec(album, palette)
+    spec = build_poster_spec(album, _get_palette_cached(db, album))
     png_bytes = render_poster_png(spec)
 
     return Response(content=png_bytes, media_type="image/png")
+
+
+def _get_palette_cached(db: Session, album: Album) -> list[str]:
+    """Return an album's palette, extracting it only the first time it is asked for."""
+    if not album.image_url:
+        return []
+
+    entry = db.query(AlbumPalette).filter(AlbumPalette.album_id == album.id).first()
+    if entry:
+        return entry.palette
+
+    palette = get_dominant_colors(album.image_url)
+    db.add(AlbumPalette(album_id=album.id, palette=palette))
+    try:
+        db.commit()
+    except IntegrityError:
+        # A concurrent request for the same album cached it first. Same art and
+        # a fixed random_state, so its palette is identical to ours.
+        db.rollback()
+
+    return palette
 
 
 def _get_album_or_404(album_id: str, db: Session) -> Album:

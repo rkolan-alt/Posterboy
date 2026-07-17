@@ -1,0 +1,186 @@
+/* Mirrors the <style> block in backend/app/templates/poster.html.
+   That Jinja template renders the PNG a user downloads; this renders the live
+   preview. They must stay in sync — a visual change belongs in both files.
+
+   Two deliberate differences from the server template:
+   - Scoped to `.poster` rather than bare `*` and `body`, so it cannot leak into
+     the rest of the app.
+   - No `body { background }` rule; that is the screenshot backdrop, not part of
+     the poster itself. */
+
+.poster,
+.poster * {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+.poster {
+  width: 1000px;
+  background: #f2ede1;
+  border: 3px solid #171512;
+  padding: 22px;
+  font-family: -apple-system, 'Helvetica Neue', Arial, sans-serif;
+  color: #171512;
+  text-align: left;
+}
+
+/* ---------- Album art + spine ---------- */
+
+.poster .art-section {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 1 / 1;
+  overflow: hidden;
+  background: #171512;
+}
+
+.poster .art-image {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.poster .spine-bar {
+  position: absolute;
+  top: 0;
+  left: 0;
+  bottom: 0;
+  width: 64px;
+  background: #171512;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 20px 0;
+}
+
+.poster .spine-letter {
+  color: #f2ede1;
+  font-family: Georgia, 'Times New Roman', serif;
+  font-weight: 700;
+  font-size: 30px;
+  line-height: 1.08;
+  letter-spacing: 0.02em;
+}
+
+.poster .spine-sep {
+  color: #a8a094;
+  font-size: 14px;
+  line-height: 2.2;
+}
+
+/* ---------- Divider rules ---------- */
+
+.poster .rule {
+  height: 2px;
+  background: #171512;
+  margin: 20px 0;
+}
+
+/* ---------- Title row + swatches ---------- */
+
+.poster .title-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+}
+
+.poster .title {
+  font-size: 46px;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.poster .swatch-strip {
+  display: flex;
+  flex: 0 0 auto;
+  height: 34px;
+  border: 1.5px solid #171512;
+}
+
+.poster .swatch {
+  width: 34px;
+  height: 100%;
+}
+
+/* ---------- Tracklist ---------- */
+
+.poster .tracklist {
+  display: flex;
+  gap: 48px;
+  /* Default size; shrunk to fit by PosterTemplate.tsx, mirroring
+     _SHRINK_TRACKLIST_TO_FIT_JS in poster_render_service.py. */
+  font-size: 17px;
+}
+
+.poster .track-col {
+  flex: 1;
+  /* Override the flex default of min-width:auto, which otherwise keeps a flex
+     item from shrinking below its content's natural width - without this, a
+     long track name grows the column (and the whole poster) instead of being
+     clipped by .track-name below. */
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+}
+
+.poster .track-row {
+  display: flex;
+  align-items: baseline;
+  gap: 14px;
+}
+
+.poster .track-num {
+  font-weight: 800;
+  color: #171512;
+  min-width: 26px;
+}
+
+.poster .track-name {
+  /* Same min-width:auto override as .track-col, at the level that actually
+     needs to clip/ellipsize. */
+  min-width: 0;
+  flex: 1;
+  text-transform: uppercase;
+  font-weight: 500;
+  letter-spacing: 0.01em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ---------- Footer ---------- */
+
+.poster .footer-row {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+}
+
+.poster .footer-meta {
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  color: #4a4438;
+}
+
+.poster .footer-deco {
+  display: flex;
+  align-items: flex-end;
+  gap: 3px;
+  height: 30px;
+}
+
+.poster .footer-deco div {
+  width: 3px;
+  background: #171512;
+}

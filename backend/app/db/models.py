@@ -78,3 +78,23 @@ class Album(Base):
 
     def __repr__(self):
         return f"<Album {self.name}>"
+
+
+class AlbumPalette(Base):
+    """Cached dominant-colour palette for an album's cover art. No TTL: cover
+    art is immutable, so this is computed once per album and kept.
+
+    Extraction downloads the art and runs k-means (~0.3s measured), and both the
+    poster preview and the PNG render need it, so uncached it would re-run on
+    every card of every dashboard load.
+
+    Separate from Album rather than a column on it: create_all() does not add
+    columns to an existing table, and milestone 5 extends this row with Lab
+    values and cluster weights for ColorSync's similarity ranking.
+    """
+
+    __tablename__ = "album_palettes"
+
+    album_id = Column(String(64), ForeignKey("albums.id"), primary_key=True)
+    palette = Column(JSONB, nullable=False)  # hex strings, most dominant first
+    computed_at = Column(DateTime, default=func.now(), nullable=False)

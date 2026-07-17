@@ -74,6 +74,34 @@ export async function getTopAlbums(timeRange: TimeRange, limit: number): Promise
   return data.albums
 }
 
+export interface PosterTrack {
+  track_number: number
+  name: string
+  duration_ms: number
+  num_display: string
+}
+
+/** Shape returned by GET /api/posters/{id}; consumed by PosterTemplate. */
+export interface PosterSpec {
+  album_id: string
+  title: string
+  artist: string
+  year: string
+  image_url: string | null
+  spine_lines: { type: 'letter' | 'sep'; value: string }[]
+  palette: string[]
+  col1: PosterTrack[]
+  col2: PosterTrack[]
+}
+
+export async function getPosterSpec(albumId: string): Promise<PosterSpec> {
+  const response = await apiCall(`/posters/${albumId}`)
+  if (!response.ok) {
+    throw await errorFrom(response, 'Failed to load poster preview')
+  }
+  return response.json()
+}
+
 /** Fetches the server-rendered poster PNG and triggers a browser download. */
 export async function downloadPoster(albumId: string, filename: string): Promise<void> {
   const response = await apiCall(`/posters/${albumId}/render.png`)
