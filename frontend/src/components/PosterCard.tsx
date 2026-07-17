@@ -17,7 +17,6 @@ export default function PosterCard({ album }: { album: RankedAlbum }) {
   const frameRef = useRef<HTMLDivElement>(null)
   const posterRef = useRef<HTMLDivElement>(null)
   const [scale, setScale] = useState(0)
-  const [frameHeight, setFrameHeight] = useState(0)
 
   useEffect(() => {
     let ignore = false
@@ -33,20 +32,21 @@ export default function PosterCard({ album }: { album: RankedAlbum }) {
     }
   }, [album.album_id])
 
-  // A transform does not affect layout, so the frame needs an explicit height or
-  // it would reserve the poster's full unscaled height. Child layout effects run
-  // first, so PosterTemplate has already shrunk its tracklist by the time we
-  // measure — the height we read is final.
+  // Fit the poster inside the square footprint the cover art used, so cards stay
+  // the size they were. The poster is portrait, so height is the binding
+  // constraint and it ends up narrower than the card with a gap either side.
+  // Child layout effects run first, so PosterTemplate has already shrunk its
+  // tracklist by the time we measure — the height we read is final.
   useLayoutEffect(() => {
     if (!spec) return
 
     const measure = () => {
       const frame = frameRef.current
       const poster = posterRef.current
-      if (!frame || !poster) return
-      const nextScale = frame.clientWidth / POSTER_WIDTH
-      setScale(nextScale)
-      setFrameHeight(poster.offsetHeight * nextScale)
+      if (!frame || !poster || !poster.offsetHeight) return
+      setScale(
+        Math.min(frame.clientWidth / POSTER_WIDTH, frame.clientHeight / poster.offsetHeight)
+      )
     }
 
     measure()
@@ -77,9 +77,6 @@ export default function PosterCard({ album }: { album: RankedAlbum }) {
         flexDirection: 'column',
         alignItems: 'center',
         gap: '0.5em',
-        // Fill the grid row so the download buttons line up across cards, whose
-        // posters differ in height with track count.
-        height: '100%',
       }}
     >
       <div style={{ position: 'relative', width: '100%' }}>
@@ -87,19 +84,24 @@ export default function PosterCard({ album }: { album: RankedAlbum }) {
           <div
             ref={frameRef}
             style={{
+              position: 'relative',
               width: '100%',
+              aspectRatio: '1 / 1',
               overflow: 'hidden',
-              height: frameHeight || undefined,
-              // Hidden until measured, otherwise the poster flashes at full size.
-              visibility: scale ? 'visible' : 'hidden',
+              borderRadius: '4px',
             }}
           >
             <div
               ref={posterRef}
               style={{
+                position: 'absolute',
+                top: '50%',
+                left: '50%',
                 width: POSTER_WIDTH,
-                transformOrigin: 'top left',
-                transform: scale ? `scale(${scale})` : undefined,
+                transformOrigin: 'center',
+                transform: `translate(-50%, -50%) scale(${scale})`,
+                // Hidden until measured, otherwise it flashes at full size.
+                visibility: scale ? 'visible' : 'hidden',
               }}
             >
               <PosterTemplate spec={spec} />
@@ -151,7 +153,7 @@ export default function PosterCard({ album }: { album: RankedAlbum }) {
         onClick={handleDownload}
         disabled={downloading}
         className="btn-spotify"
-        style={{ width: '100%', marginTop: 'auto' }}
+        style={{ width: '100%' }}
       >
         {downloading ? 'Rendering…' : 'Download Poster'}
       </button>
