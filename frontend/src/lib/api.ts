@@ -1,6 +1,6 @@
 // Empty base = same-origin relative requests, proxied to the backend by Vite
 // (see vite.config.ts). Keeps the session cookie first-party and CORS-free.
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || ''
+export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || ''
 
 export async function apiCall(
   endpoint: string,
