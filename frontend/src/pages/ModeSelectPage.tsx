@@ -48,7 +48,6 @@ export default function ModeSelectPage() {
       >
         <div>
           <button
-            className="btn-spotify"
             style={{ width: '100%', padding: '1em 2em', fontSize: '1.1em' }}
             onClick={() => navigate('/dashboard')}
           >
@@ -61,7 +60,6 @@ export default function ModeSelectPage() {
 
         <div>
           <button
-            className="btn-spotify"
             style={{ width: '100%', padding: '1em 2em', fontSize: '1.1em' }}
             onClick={() => navigate('/colorsync')}
           >

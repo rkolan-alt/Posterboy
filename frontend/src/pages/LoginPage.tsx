@@ -29,11 +29,7 @@ export default function LoginPage() {
     <div style={{ textAlign: 'center' }}>
       <h1>Posterboy</h1>
       <p>Generate beautiful album posters from your Spotify listening history</p>
-      <button
-        onClick={handleLogin}
-        className="btn-spotify"
-        style={{ padding: '1em 2em', fontSize: '1.1em' }}
-      >
+      <button onClick={handleLogin} style={{ padding: '1em 2em', fontSize: '1.1em' }}>
         Connect with Spotify
       </button>
     </div>

@@ -149,12 +149,7 @@ export default function PosterCard({ album }: { album: RankedAlbum }) {
         <div style={{ opacity: 0.6, fontSize: '0.8em' }}>{album.track_count} songs</div>
       </div>
 
-      <button
-        onClick={handleDownload}
-        disabled={downloading}
-        className="btn-spotify"
-        style={{ width: '100%' }}
-      >
+      <button onClick={handleDownload} disabled={downloading} style={{ width: '100%' }}>
         {downloading ? 'Rendering…' : 'Download Poster'}
       </button>
       {error && <div style={{ color: '#f87171', fontSize: '0.8em' }}>{error}</div>}
