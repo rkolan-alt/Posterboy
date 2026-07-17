@@ -38,6 +38,29 @@ class TopTracksCache(Base):
     expires_at = Column(DateTime, nullable=False)
 
 
+class LibraryTracksCache(Base):
+    """Caches a user's combined saved + playlist tracks, TTL ~1hr.
+
+    The crawl behind this is expensive: paginated saved tracks, then the
+    paginated playlist list, then a paginated item fetch per playlist — easily
+    100+ Spotify requests. Uncached it re-runs on every dashboard load and hits
+    Spotify's rate limit quickly.
+
+    Payload holds only what ranking reads ({"id", "album": {"id"}}); a full
+    library is thousands of tracks and storing them whole would be enormous.
+    """
+
+    __tablename__ = "library_tracks_cache"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id = Column(
+        UUID(as_uuid=True), ForeignKey("users.id"), unique=True, nullable=False, index=True
+    )
+    payload = Column(JSONB, nullable=False)
+    fetched_at = Column(DateTime, default=func.now(), nullable=False)
+    expires_at = Column(DateTime, nullable=False)
+
+
 class Album(Base):
     """Shared album metadata cache, keyed by Spotify album ID. Not user-specific."""
 

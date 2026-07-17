@@ -45,10 +45,21 @@ export interface RankedAlbum {
 
 export type TimeRange = 'short_term' | 'medium_term' | 'long_term'
 
+/** Prefer the server's own message (e.g. Spotify's rate limit and how long it
+ *  lasts) over a generic one, so the UI can say what actually went wrong. */
+async function errorFrom(response: Response, fallback: string): Promise<Error> {
+  try {
+    const body = await response.json()
+    return new Error(typeof body?.detail === 'string' ? body.detail : fallback)
+  } catch {
+    return new Error(fallback)
+  }
+}
+
 export async function getLibraryAlbums(limit: number): Promise<RankedAlbum[]> {
   const response = await apiCall(`/library/library-albums?limit=${limit}`)
   if (!response.ok) {
-    throw new Error('Failed to fetch library albums')
+    throw await errorFrom(response, 'Failed to fetch library albums')
   }
   const data = await response.json()
   return data.albums
@@ -57,7 +68,7 @@ export async function getLibraryAlbums(limit: number): Promise<RankedAlbum[]> {
 export async function getTopAlbums(timeRange: TimeRange, limit: number): Promise<RankedAlbum[]> {
   const response = await apiCall(`/library/top-albums?time_range=${timeRange}&limit=${limit}`)
   if (!response.ok) {
-    throw new Error('Failed to fetch top albums')
+    throw await errorFrom(response, 'Failed to fetch top albums')
   }
   const data = await response.json()
   return data.albums

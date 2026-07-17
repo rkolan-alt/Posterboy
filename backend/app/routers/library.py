@@ -1,9 +1,11 @@
+import httpx
 from fastapi import APIRouter, Depends, HTTPException, Query
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 from datetime import datetime, timedelta
 
 from app.db.base import get_db
-from app.db.models import User, TopTracksCache, Album
+from app.db.models import User, TopTracksCache, LibraryTracksCache, Album
 from app.core.deps import get_current_user
 from app.core.security import decrypt_token
 from app.services.spotify_service import (
@@ -19,6 +21,7 @@ router = APIRouter(prefix="/library", tags=["library"])
 
 VALID_TIME_RANGES = {"short_term", "medium_term", "long_term"}
 TOP_TRACKS_CACHE_TTL = timedelta(hours=1)
+LIBRARY_TRACKS_CACHE_TTL = timedelta(hours=1)
 
 
 @router.get("/top-albums")
@@ -81,18 +84,10 @@ def get_library_albums(
     """Return the user's top N albums, ranked by frequency of songs in their library and playlists."""
     access_token = decrypt_token(user.access_token_encrypted)
 
-    # Fetch all library tracks
-    saved_tracks = get_saved_tracks(access_token)
-
-    # Fetch all playlist tracks
-    all_playlist_tracks = []
-    playlists = get_user_playlists(access_token)
-    for playlist in playlists:
-        playlist_tracks = get_playlist_tracks(access_token, playlist["id"])
-        all_playlist_tracks.extend(playlist_tracks)
-
-    # Combine all tracks (deduplication happens in ranking function)
-    all_tracks = saved_tracks + all_playlist_tracks
+    try:
+        all_tracks = _get_library_tracks_cached(db, user, access_token)
+    except httpx.HTTPStatusError as exc:
+        raise _rate_limit_error(exc) from exc
 
     if not all_tracks:
         return {"albums": []}
@@ -124,6 +119,82 @@ def get_library_albums(
         )
 
     return {"albums": albums_response}
+
+
+def _rate_limit_error(exc: httpx.HTTPStatusError) -> Exception:
+    """Turn Spotify's 429 into something the UI can actually tell the user.
+
+    Spotify sends Retry-After on 429; without this the whole crawl surfaced as a
+    generic 500 and the dashboard just said "Could not load your albums".
+    """
+    if exc.response.status_code != 429:
+        return exc
+
+    retry_after = exc.response.headers.get("retry-after", "60")
+    return HTTPException(
+        status_code=429,
+        detail=f"Spotify's rate limit was hit. Try again in about {retry_after} seconds.",
+        headers={"Retry-After": retry_after},
+    )
+
+
+def _slim_track(track: dict) -> dict | None:
+    """Reduce a Spotify track to the two fields ranking reads: its own ID (for
+    dedup) and its album ID. Returns None for anything with no album id —
+    local files and podcast episodes, which cannot belong to an album poster.
+    """
+    album_id = (track.get("album") or {}).get("id")
+    if not album_id:
+        return None
+    return {"id": track.get("id"), "album": {"id": album_id}}
+
+
+def _get_library_tracks_cached(db: Session, user: User, access_token: str) -> list[dict]:
+    """Return the user's combined library tracks, crawling Spotify only when stale.
+
+    See LibraryTracksCache: the crawl costs 100+ Spotify requests, so running it
+    per dashboard load reliably trips the API's rate limit.
+    """
+    entry = (
+        db.query(LibraryTracksCache).filter(LibraryTracksCache.user_id == user.id).first()
+    )
+
+    if entry and entry.expires_at > datetime.utcnow():
+        return entry.payload
+
+    saved_tracks = get_saved_tracks(access_token)
+
+    all_playlist_tracks = []
+    for playlist in get_user_playlists(access_token):
+        all_playlist_tracks.extend(get_playlist_tracks(access_token, playlist["id"]))
+
+    # Dedup happens in the ranking function, which counts each track ID once.
+    slimmed = [t for t in (_slim_track(t) for t in saved_tracks + all_playlist_tracks) if t]
+
+    now = datetime.utcnow()
+    if entry:
+        entry.payload = slimmed
+        entry.fetched_at = now
+        entry.expires_at = now + LIBRARY_TRACKS_CACHE_TTL
+    else:
+        db.add(
+            LibraryTracksCache(
+                user_id=user.id,
+                payload=slimmed,
+                fetched_at=now,
+                expires_at=now + LIBRARY_TRACKS_CACHE_TTL,
+            )
+        )
+
+    try:
+        db.commit()
+    except IntegrityError:
+        # A concurrent crawl (React StrictMode fires the effect twice in dev)
+        # inserted the row first. Its payload is equivalent, so keep ours in
+        # memory and drop the duplicate write.
+        db.rollback()
+
+    return slimmed
 
 
 def _get_top_tracks_cached(db: Session, user: User, time_range: str, access_token: str) -> list[dict]:

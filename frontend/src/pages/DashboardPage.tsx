@@ -98,8 +98,8 @@ export default function DashboardPage() {
       .then((result) => {
         if (!ignore) setAlbums(result)
       })
-      .catch(() => {
-        if (!ignore) setAlbumsError('Could not load your albums. Try again.')
+      .catch((err: Error) => {
+        if (!ignore) setAlbumsError(err.message || 'Could not load your albums. Try again.')
       })
       .finally(() => {
         if (!ignore) setAlbumsLoading(false)
