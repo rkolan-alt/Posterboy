@@ -13,6 +13,53 @@ interface User {
 
 type Mode = 'library' | 'top'
 
+const MAX_ALBUMS = 6
+const CARD_PX = 330
+const GAP_PX = 24
+
+/**
+ * Grid placement for a given number of albums.
+ *
+ * Counts that divide evenly (1, 2, 4, 6) use a plain N-column grid. Counts with
+ * a short bottom row (3, 5) stagger it into the gaps of the row above: doubling
+ * the column count and spanning two columns puts an item starting on an even
+ * column exactly half a column off the row above, which centres it on a gap.
+ * Cards stay the same width and the gap stays the same in every layout.
+ */
+function gridLayout(count: number): {
+  realCols: number
+  columns: number
+  placeFor: (i: number) => { gridColumn?: string; gridRow?: number }
+} {
+  switch (count) {
+    case 6:
+      return { realCols: 3, columns: 3, placeFor: () => ({}) }
+    case 5:
+      return {
+        realCols: 3,
+        columns: 6,
+        placeFor: (i) =>
+          i < 3
+            ? { gridColumn: `${i * 2 + 1} / span 2`, gridRow: 1 }
+            : { gridColumn: `${(i - 3) * 2 + 2} / span 2`, gridRow: 2 },
+      }
+    case 4:
+      return { realCols: 2, columns: 2, placeFor: () => ({}) }
+    case 3:
+      return {
+        realCols: 2,
+        columns: 4,
+        placeFor: (i) =>
+          i < 2
+            ? { gridColumn: `${i * 2 + 1} / span 2`, gridRow: 1 }
+            : { gridColumn: '2 / span 2', gridRow: 2 },
+      }
+    default:
+      // 1 and 2 both stack in a single column.
+      return { realCols: 1, columns: 1, placeFor: () => ({}) }
+  }
+}
+
 export default function DashboardPage() {
   const navigate = useNavigate()
   const [user, setUser] = useState<User | null>(null)
@@ -33,18 +80,35 @@ export default function DashboardPage() {
       .finally(() => setAuthLoading(false))
   }, [navigate])
 
+  // Always fetch the maximum and truncate client-side. `limit` only shortens an
+  // already-ranked list, so the top 4 are the first 4 of the top 6 — refetching
+  // would just re-run a ~7s Spotify crawl to show a subset we already hold.
+  // `ignore` drops responses from a superseded mode/timeRange so a slow earlier
+  // request cannot land after a newer one and overwrite it.
   useEffect(() => {
     if (!user) return
+    let ignore = false
     setAlbumsLoading(true)
     setAlbumsError(null)
 
-    const fetchAlbums = mode === 'library' ? getLibraryAlbums(limit) : getTopAlbums(timeRange, limit)
+    const fetchAlbums =
+      mode === 'library' ? getLibraryAlbums(MAX_ALBUMS) : getTopAlbums(timeRange, MAX_ALBUMS)
 
     fetchAlbums
-      .then(setAlbums)
-      .catch(() => setAlbumsError('Could not load your albums. Try again.'))
-      .finally(() => setAlbumsLoading(false))
-  }, [user, mode, limit, timeRange])
+      .then((result) => {
+        if (!ignore) setAlbums(result)
+      })
+      .catch(() => {
+        if (!ignore) setAlbumsError('Could not load your albums. Try again.')
+      })
+      .finally(() => {
+        if (!ignore) setAlbumsLoading(false)
+      })
+
+    return () => {
+      ignore = true
+    }
+  }, [user, mode, timeRange])
 
   const handleLogout = async () => {
     await logout()
@@ -54,6 +118,9 @@ export default function DashboardPage() {
   if (authLoading) {
     return <div>Loading...</div>
   }
+
+  const visibleAlbums = albums.slice(0, limit)
+  const layout = gridLayout(visibleAlbums.length)
 
   return (
     <div style={{ textAlign: 'left', width: '100%' }}>
@@ -90,7 +157,7 @@ export default function DashboardPage() {
         <label>
           Albums:{' '}
           <select value={limit} onChange={(e) => setLimit(Number(e.target.value))}>
-            {[1, 2, 3, 4, 5, 6].map((n) => (
+            {Array.from({ length: MAX_ALBUMS }, (_, i) => i + 1).map((n) => (
               <option key={n} value={n}>
                 {n}
               </option>
@@ -105,17 +172,26 @@ export default function DashboardPage() {
         <p>No albums found. Try a different mode, or listen to more music on Spotify first.</p>
       )}
 
-      <div
-        style={{
-          display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))',
-          gap: '1.5em',
-        }}
-      >
-        {albums.map((album) => (
-          <PosterCard key={album.album_id} album={album} />
-        ))}
-      </div>
+      {/* Hidden while loading: a mode or time-range change returns a different
+          set of albums, so leaving the previous ones on screen for the length of
+          the fetch just shows the user stale data. */}
+      {!albumsLoading && !albumsError && visibleAlbums.length > 0 && (
+        <div
+          style={{
+            display: 'grid',
+            gridTemplateColumns: `repeat(${layout.columns}, 1fr)`,
+            gap: `${GAP_PX}px`,
+            maxWidth: layout.realCols * CARD_PX + (layout.realCols - 1) * GAP_PX,
+            margin: '0 auto',
+          }}
+        >
+          {visibleAlbums.map((album, i) => (
+            <div key={album.album_id} style={layout.placeFor(i)}>
+              <PosterCard album={album} />
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   )
 }
