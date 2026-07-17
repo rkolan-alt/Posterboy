@@ -22,6 +22,9 @@ def build_authorize_url(state: str) -> str:
         "redirect_uri": settings.spotify_redirect_uri,
         "scope": SCOPE,
         "state": state,
+        # Force Spotify's auth dialog rather than silently re-approving a user who
+        # still has a Spotify session, so the login step is always visible.
+        "show_dialog": "true",
     }
     return f"{AUTHORIZE_URL}?{urlencode(params)}"
 

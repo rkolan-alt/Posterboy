@@ -25,5 +25,7 @@ def set_session_cookie_params() -> dict:
         "secure": settings.cookie_secure,
         "samesite": settings.cookie_samesite,
         "httponly": True,
-        "max_age": MAX_AGE_SECONDS,
+        # Deliberately no max_age/expires: this is a browser-session cookie, so
+        # closing the browser signs the user out and the next visit starts at the
+        # login page. MAX_AGE_SECONDS still bounds the token's age server-side.
     }
