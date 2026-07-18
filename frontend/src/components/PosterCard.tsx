@@ -1,5 +1,5 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
-import type { RankedAlbum, PosterSpec } from '../lib/api'
+import type { PosterSpec } from '../lib/api'
 import { downloadPoster, getPosterSpec } from '../lib/api'
 import PosterTemplate from './PosterTemplate'
 
@@ -7,7 +7,24 @@ import PosterTemplate from './PosterTemplate'
 // it down from there so the preview keeps the PNG's exact proportions.
 const POSTER_WIDTH = 1000
 
-export default function PosterCard({ album }: { album: RankedAlbum }) {
+// The fields a card needs to render, shared by every mode (Ranked, ColorSync).
+export interface PosterCardAlbum {
+  album_id: string
+  name: string
+  artist_name: string
+  image_url: string | null
+  rank: number
+}
+
+// `caption` is the third line under the title — each mode says something
+// different there (Ranked: song count; ColorSync: colour-match distance).
+export default function PosterCard({
+  album,
+  caption,
+}: {
+  album: PosterCardAlbum
+  caption?: string
+}) {
   const [downloading, setDownloading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -146,7 +163,7 @@ export default function PosterCard({ album }: { album: RankedAlbum }) {
         <div style={{ opacity: 0.75, fontSize: '0.9em', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
           {album.artist_name}
         </div>
-        <div style={{ opacity: 0.6, fontSize: '0.8em' }}>{album.track_count} songs</div>
+        {caption && <div style={{ opacity: 0.6, fontSize: '0.8em' }}>{caption}</div>}
       </div>
 
       <button onClick={handleDownload} disabled={downloading} style={{ width: '100%' }}>

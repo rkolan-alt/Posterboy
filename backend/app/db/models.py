@@ -89,12 +89,18 @@ class AlbumPalette(Base):
     every card of every dashboard load.
 
     Separate from Album rather than a column on it: create_all() does not add
-    columns to an existing table, and milestone 5 extends this row with Lab
-    values and cluster weights for ColorSync's similarity ranking.
+    columns to an existing table.
+
+    As of milestone 5, `palette` holds a dominance-ordered list of rich colour
+    entries — {hex, rgb, lab, weight} — not bare hex strings. The Lab values and
+    weights are ColorSync's per-album similarity feature vector; the hex values
+    still drive the poster swatch strip. The shape lives inside the schemaless
+    JSONB, so no migration was needed — legacy hex-only rows are upgraded in
+    place on next read (see routers/posters._get_palette_cached).
     """
 
     __tablename__ = "album_palettes"
 
     album_id = Column(String(64), ForeignKey("albums.id"), primary_key=True)
-    palette = Column(JSONB, nullable=False)  # hex strings, most dominant first
+    palette = Column(JSONB, nullable=False)  # [{hex, rgb, lab, weight}], most dominant first
     computed_at = Column(DateTime, default=func.now(), nullable=False)

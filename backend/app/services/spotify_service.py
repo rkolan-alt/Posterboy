@@ -12,6 +12,7 @@ TOP_TRACKS_URL = "https://api.spotify.com/v1/me/top/tracks"
 SAVED_TRACKS_URL = "https://api.spotify.com/v1/me/tracks"
 PLAYLISTS_URL = "https://api.spotify.com/v1/me/playlists"
 ALBUMS_URL = "https://api.spotify.com/v1/albums"
+SEARCH_URL = "https://api.spotify.com/v1/search"
 
 
 def build_authorize_url(state: str) -> str:
@@ -123,6 +124,35 @@ def get_albums(access_token: str, album_ids: list[str]) -> list[dict]:
         albums.append(response.json())
 
     return albums
+
+
+def search_albums(access_token: str, query: str, limit: int = 10) -> list[dict]:
+    """Search Spotify's album catalogue, powering the ColorSync seed picker.
+
+    Returns lightweight album summaries (id, name, artist, cover image) — enough
+    to display a pick list. Full metadata/palette is fetched only once a seed is
+    chosen.
+    """
+    response = httpx.get(
+        SEARCH_URL,
+        headers={"Authorization": f"Bearer {access_token}"},
+        params={"q": query, "type": "album", "limit": limit},
+    )
+    response.raise_for_status()
+    items = response.json().get("albums", {}).get("items", [])
+
+    results = []
+    for album in items:
+        results.append(
+            {
+                "album_id": album["id"],
+                "name": album["name"],
+                "artist_name": ", ".join(a["name"] for a in album["artists"]),
+                "image_url": album["images"][0]["url"] if album["images"] else None,
+                "release_date": album.get("release_date"),
+            }
+        )
+    return results
 
 
 def get_saved_tracks(access_token: str) -> list[dict]:

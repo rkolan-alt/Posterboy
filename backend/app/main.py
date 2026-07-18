@@ -2,7 +2,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.core.config import settings
 from app.db.base import engine, Base
-from app.routers import auth, library, posters
+from app.routers import auth, library, posters, colorsync, search
 
 # Create tables
 Base.metadata.create_all(bind=engine)
@@ -22,6 +22,8 @@ app.add_middleware(
 app.include_router(auth.router, prefix="/api")
 app.include_router(library.router, prefix="/api")
 app.include_router(posters.router, prefix="/api")
+app.include_router(colorsync.router, prefix="/api")
+app.include_router(search.router, prefix="/api")
 
 
 @app.get("/health")

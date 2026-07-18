@@ -74,6 +74,61 @@ export async function getTopAlbums(timeRange: TimeRange, limit: number): Promise
   return data.albums
 }
 
+export interface AlbumSearchResult {
+  album_id: string
+  name: string
+  artist_name: string
+  image_url: string | null
+  release_date: string | null
+}
+
+export async function searchAlbums(query: string): Promise<AlbumSearchResult[]> {
+  const response = await apiCall(`/search/albums?q=${encodeURIComponent(query)}`)
+  if (!response.ok) {
+    throw await errorFrom(response, 'Album search failed')
+  }
+  const data = await response.json()
+  return data.albums
+}
+
+/** An album returned by ColorSync, ranked by cover-art colour match to the seed. */
+export interface ColorSyncAlbum {
+  rank: number
+  distance: number
+  album_id: string
+  name: string
+  artist_name: string
+  release_date: string | null
+  image_url: string | null
+  total_tracks: number | null
+  spotify_uri: string
+}
+
+export interface ColorSyncSeed {
+  album_id: string
+  name: string
+  artist_name: string
+  image_url: string | null
+  palette: string[]
+}
+
+export interface ColorSyncResult {
+  seed: ColorSyncSeed
+  albums: ColorSyncAlbum[]
+}
+
+export async function getColorSyncRecommendations(
+  seedAlbumId: string | null,
+  limit: number
+): Promise<ColorSyncResult> {
+  const seedParam = seedAlbumId ? `&seed_album_id=${seedAlbumId}` : ''
+  const response = await apiCall(`/colorsync/recommendations?limit=${limit}${seedParam}`)
+  if (!response.ok) {
+    throw await errorFrom(response, 'Failed to load colour matches')
+  }
+  return response.json()
+}
+
 export interface PosterTrack {
   track_number: number
   name: string

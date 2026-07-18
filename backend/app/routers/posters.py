@@ -1,11 +1,11 @@
 from fastapi import APIRouter, Depends, HTTPException, Response
-from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.db.base import get_db
-from app.db.models import User, Album, AlbumPalette
+from app.db.models import User, Album
 from app.core.deps import get_current_user
-from app.services.color_service import get_dominant_colors
+from app.services.color_service import palette_hexes
+from app.services.palette_service import get_album_palette
 from app.services.poster_service import build_poster_spec
 from app.services.poster_render_service import render_poster_png
 
@@ -38,24 +38,9 @@ def render_poster(
 
 
 def _get_palette_cached(db: Session, album: Album) -> list[str]:
-    """Return an album's palette, extracting it only the first time it is asked for."""
-    if not album.image_url:
-        return []
-
-    entry = db.query(AlbumPalette).filter(AlbumPalette.album_id == album.id).first()
-    if entry:
-        return entry.palette
-
-    palette = get_dominant_colors(album.image_url)
-    db.add(AlbumPalette(album_id=album.id, palette=palette))
-    try:
-        db.commit()
-    except IntegrityError:
-        # A concurrent request for the same album cached it first. Same art and
-        # a fixed random_state, so its palette is identical to ours.
-        db.rollback()
-
-    return palette
+    """The poster template only needs hex swatches; the shared cache stores the
+    rich {hex, rgb, lab, weight} palette (Lab/weight power ColorSync)."""
+    return palette_hexes(get_album_palette(db, album))
 
 
 def _get_album_or_404(album_id: str, db: Session) -> Album:
