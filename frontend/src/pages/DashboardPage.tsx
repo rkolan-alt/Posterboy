@@ -136,14 +136,19 @@ export default function DashboardPage() {
         <div
           style={{
             display: 'grid',
-            gridTemplateColumns: `repeat(${layout.columns}, 1fr)`,
+            // minmax(0, 1fr), not 1fr: plain 1fr is minmax(auto, 1fr), whose
+            // auto floor lets a card's min-content width expand its column. A
+            // long, unbreakable album title would then widen its whole column —
+            // and since columns span every row, drag the other card in that
+            // column wider too, blowing up its poster.
+            gridTemplateColumns: `repeat(${layout.columns}, minmax(0, 1fr))`,
             gap: `${GAP_PX}px`,
             maxWidth: layout.realCols * CARD_PX + (layout.realCols - 1) * GAP_PX,
             margin: '0 auto',
           }}
         >
           {visibleAlbums.map((album, i) => (
-            <div key={album.album_id} style={layout.placeFor(i)}>
+            <div key={album.album_id} style={{ ...layout.placeFor(i), minWidth: 0 }}>
               <PosterCard album={album} caption={`${album.track_count} songs`} />
             </div>
           ))}

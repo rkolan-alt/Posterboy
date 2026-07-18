@@ -94,6 +94,9 @@ export default function PosterCard({
         flexDirection: 'column',
         alignItems: 'center',
         gap: '0.5em',
+        // Let the card shrink to its grid column so a long title clips (ellipsis)
+        // instead of forcing the card — and its column — wider.
+        minWidth: 0,
       }}
     >
       <div style={{ position: 'relative', width: '100%' }}>
@@ -156,7 +159,7 @@ export default function PosterCard({
 
       {specError && <div style={{ color: '#f87171', fontSize: '0.8em' }}>{specError}</div>}
 
-      <div style={{ width: '100%' }}>
+      <div style={{ width: '100%', minWidth: 0 }}>
         <div style={{ fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
           {album.name}
         </div>
