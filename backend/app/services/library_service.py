@@ -41,15 +41,80 @@ def rate_limit_error(exc: httpx.HTTPStatusError) -> Exception:
     )
 
 
-def _slim_track(track: dict) -> dict | None:
-    """Reduce a Spotify track to the two fields ranking reads: its own ID (for
-    dedup) and its album ID. Returns None for anything with no album id —
-    local files and podcast episodes, which cannot belong to an album poster.
+def _slim_track(track: dict, source: str, playlist_id: str | None = None) -> dict | None:
+    """Reduce a Spotify track to the fields ranking reads: its own ID (for
+    dedup), its album ID, where it came from ("liked" vs "playlist"), and — for
+    playlist tracks — which playlist, so callers can filter to specific
+    playlists. Returns None for anything with no album id — local files and
+    podcast episodes, which cannot belong to a poster.
     """
     album_id = (track.get("album") or {}).get("id")
     if not album_id:
         return None
-    return {"id": track.get("id"), "album": {"id": album_id}}
+    slim = {"id": track.get("id"), "album": {"id": album_id}, "source": source}
+    if playlist_id is not None:
+        slim["playlist_id"] = playlist_id
+    return slim
+
+
+def filter_library_tracks(
+    tracks: list[dict],
+    *,
+    exclude_liked: bool = False,
+    playlist_ids: list[str] | None = None,
+) -> list[dict]:
+    """Narrow a crawl to the tracks a ranking should count.
+
+    - exclude_liked: drop Liked Songs entirely. A track that is both liked and
+      in a playlist still counts via its playlist copy.
+    - playlist_ids: None means "all playlists"; a list restricts playlist tracks
+      to those IDs (an empty list — after dropping the empty-string sentinel the
+      frontend sends for "no playlists" — means no playlist tracks at all).
+    """
+    selected = None if playlist_ids is None else {pid for pid in playlist_ids if pid}
+
+    kept = []
+    for t in tracks:
+        if t.get("source") == "liked":
+            if not exclude_liked:
+                kept.append(t)
+        else:  # playlist track
+            if selected is None or t.get("playlist_id") in selected:
+                kept.append(t)
+    return kept
+
+
+def _is_current_shape(payload: list[dict]) -> bool:
+    """Cache rows written by an older crawl lack fields newer features need
+    (source tagging, then per-playlist tagging), which silently breaks those
+    filters. Treat stale-shaped rows as expired so they get re-crawled.
+    """
+    if not payload:
+        return True
+    if "source" not in payload[0]:
+        return False
+    for t in payload:
+        if t.get("source") == "playlist":
+            return "playlist_id" in t
+    return True  # only liked tracks present — nothing playlist-specific to check
+
+
+def get_playlists_meta(access_token: str) -> list[dict]:
+    """Lightweight playlist list (id, name, track count, cover) for the picker."""
+    playlists = []
+    for p in get_user_playlists(access_token):
+        # The track-count summary is under "tracks" in the classic API and under
+        # "items" in the newer one; accept whichever this account returns.
+        count_obj = p.get("tracks") or p.get("items") or {}
+        playlists.append(
+            {
+                "id": p["id"],
+                "name": p["name"],
+                "track_count": count_obj.get("total"),
+                "image_url": p["images"][0]["url"] if p.get("images") else None,
+            }
+        )
+    return playlists
 
 
 def get_library_tracks_cached(db: Session, user: User, access_token: str) -> list[dict]:
@@ -62,17 +127,22 @@ def get_library_tracks_cached(db: Session, user: User, access_token: str) -> lis
         db.query(LibraryTracksCache).filter(LibraryTracksCache.user_id == user.id).first()
     )
 
-    if entry and entry.expires_at > datetime.utcnow():
+    if entry and entry.expires_at > datetime.utcnow() and _is_current_shape(entry.payload):
         return entry.payload
 
-    saved_tracks = get_saved_tracks(access_token)
+    saved = [_slim_track(t, "liked") for t in get_saved_tracks(access_token)]
 
-    all_playlist_tracks = []
+    playlist_tracks = []
     for playlist in get_user_playlists(access_token):
-        all_playlist_tracks.extend(get_playlist_tracks(access_token, playlist["id"]))
+        playlist_tracks.extend(
+            _slim_track(t, "playlist", playlist_id=playlist["id"])
+            for t in get_playlist_tracks(access_token, playlist["id"])
+        )
 
-    # Dedup happens in the ranking function, which counts each track ID once.
-    slimmed = [t for t in (_slim_track(t) for t in saved_tracks + all_playlist_tracks) if t]
+    # Liked first so that when Liked Songs are excluded, a track kept in both
+    # still counts via its playlist copy. Dedup happens in the ranking function,
+    # which counts each track ID once.
+    slimmed = [t for t in saved + playlist_tracks if t]
 
     now = datetime.utcnow()
     if entry:

@@ -10,6 +10,7 @@ from app.services.library_service import (
     rate_limit_error,
     get_library_tracks_cached,
     get_albums_cached,
+    filter_library_tracks,
 )
 from app.services.ranking_service import score_albums_from_library_tracks
 from app.services.palette_service import get_album_palette
@@ -28,6 +29,8 @@ CANDIDATE_POOL_SIZE = 40
 def get_recommendations(
     seed_album_id: str | None = Query(None),
     limit: int = Query(6, ge=1, le=6),
+    exclude_liked: bool = Query(True),
+    playlist_ids: list[str] | None = Query(None),
     user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
@@ -36,6 +39,10 @@ def get_recommendations(
 
     The seed defaults to the user's #1 library-ranked album; pass seed_album_id
     (e.g. from album search) to match against any album instead.
+
+    exclude_liked defaults to true — the candidate pool is built from playlist
+    albums only, since Liked Songs are often a grab-bag; pass false to include
+    them. Pass playlist_ids to draw candidates from only the chosen playlists.
     """
     access_token = decrypt_token(user.access_token_encrypted)
 
@@ -43,6 +50,10 @@ def get_recommendations(
         all_tracks = get_library_tracks_cached(db, user, access_token)
     except httpx.HTTPStatusError as exc:
         raise rate_limit_error(exc) from exc
+
+    all_tracks = filter_library_tracks(
+        all_tracks, exclude_liked=exclude_liked, playlist_ids=playlist_ids
+    )
 
     ranked = score_albums_from_library_tracks(all_tracks)
     if not ranked:

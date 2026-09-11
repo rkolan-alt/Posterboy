@@ -12,6 +12,8 @@ from app.services.library_service import (
     get_library_tracks_cached,
     get_top_tracks_cached,
     get_albums_cached,
+    filter_library_tracks,
+    get_playlists_meta,
 )
 from app.services.ranking_service import (
     score_albums_from_top_tracks,
@@ -58,19 +60,41 @@ def get_top_albums(
     return {"time_range": time_range, "albums": albums_response}
 
 
+@router.get("/playlists")
+def get_playlists(
+    user: User = Depends(get_current_user),
+):
+    """List the user's playlists (id, name, track count, cover) for the picker."""
+    access_token = decrypt_token(user.access_token_encrypted)
+    try:
+        return {"playlists": get_playlists_meta(access_token)}
+    except httpx.HTTPStatusError as exc:
+        raise rate_limit_error(exc) from exc
+
+
 @router.get("/library-albums")
 def get_library_albums(
     limit: int = Query(6, ge=1, le=6),
+    exclude_liked: bool = Query(False),
+    playlist_ids: list[str] | None = Query(None),
     user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    """Return the user's top N albums, ranked by frequency of songs in their library and playlists."""
+    """Return the user's top N albums, ranked by frequency of songs in their library and playlists.
+
+    Set exclude_liked=true to ignore Liked Songs. Pass playlist_ids to rank only
+    the chosen playlists (omit for all).
+    """
     access_token = decrypt_token(user.access_token_encrypted)
 
     try:
         all_tracks = get_library_tracks_cached(db, user, access_token)
     except httpx.HTTPStatusError as exc:
         raise rate_limit_error(exc) from exc
+
+    all_tracks = filter_library_tracks(
+        all_tracks, exclude_liked=exclude_liked, playlist_ids=playlist_ids
+    )
 
     if not all_tracks:
         return {"albums": []}

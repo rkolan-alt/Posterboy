@@ -5,10 +5,14 @@ import {
   logout,
   searchAlbums,
   getColorSyncRecommendations,
+  getPlaylists,
 } from '../lib/api'
-import type { AlbumSearchResult, ColorSyncResult } from '../lib/api'
+import type { AlbumSearchResult, ColorSyncResult, Playlist } from '../lib/api'
 import { gridLayout, MAX_ALBUMS, CARD_PX, GAP_PX } from '../lib/gridLayout'
 import PosterCard from '../components/PosterCard'
+import LoadingModule from '../components/LoadingModule'
+import PlaylistSelector from '../components/PlaylistSelector'
+import { afterMinDuration } from '../lib/timing'
 
 interface User {
   spotify_user_id: string
@@ -23,6 +27,13 @@ export default function ColorSyncPage() {
   // null seed = match against the user's own #1 library album (the default).
   const [seedAlbumId, setSeedAlbumId] = useState<string | null>(null)
   const [limit, setLimit] = useState(6)
+  // Default to excluding Liked Songs — they're often a grab-bag; the user can
+  // opt back in to widen the candidate pool.
+  const [excludeLiked, setExcludeLiked] = useState(true)
+
+  // null = all playlists (default) for the candidate pool.
+  const [playlists, setPlaylists] = useState<Playlist[]>([])
+  const [selectedPlaylistIds, setSelectedPlaylistIds] = useState<string[] | null>(null)
 
   const [result, setResult] = useState<ColorSyncResult | null>(null)
   const [loading, setLoading] = useState(false)
@@ -39,6 +50,14 @@ export default function ColorSyncPage() {
       .finally(() => setAuthLoading(false))
   }, [navigate])
 
+  // Load playlists once for the selector (best-effort).
+  useEffect(() => {
+    if (!user) return
+    getPlaylists()
+      .then(setPlaylists)
+      .catch(() => setPlaylists([]))
+  }, [user])
+
   // Fetch the max and slice client-side: the N closest matches are a prefix of
   // the 6 closest, so changing N never needs a refetch — which matters here
   // because a fresh seed re-extracts palettes for the whole candidate pool.
@@ -47,22 +66,25 @@ export default function ColorSyncPage() {
     let ignore = false
     setLoading(true)
     setError(null)
+    const started = Date.now()
 
-    getColorSyncRecommendations(seedAlbumId, MAX_ALBUMS)
+    getColorSyncRecommendations(seedAlbumId, MAX_ALBUMS, excludeLiked, selectedPlaylistIds)
       .then((res) => {
         if (!ignore) setResult(res)
       })
       .catch((err: Error) => {
         if (!ignore) setError(err.message || 'Could not load colour matches.')
       })
-      .finally(() => {
+      .finally(async () => {
+        // Keep the spinner up for a readable minimum even on cached fetches.
+        await afterMinDuration(started)
         if (!ignore) setLoading(false)
       })
 
     return () => {
       ignore = true
     }
-  }, [user, seedAlbumId])
+  }, [user, seedAlbumId, excludeLiked, selectedPlaylistIds])
 
   const handleSearch = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -125,9 +147,9 @@ export default function ColorSyncPage() {
               Use my top album
             </button>
           )}
-          <label style={{ marginLeft: 'auto' }}>
-            Albums:{' '}
-            <select value={limit} onChange={(e) => setLimit(Number(e.target.value))}>
+          <label className="control-label" style={{ marginLeft: 'auto' }}>
+            Albums:
+            <select className="control-pill" value={limit} onChange={(e) => setLimit(Number(e.target.value))}>
               {Array.from({ length: MAX_ALBUMS }, (_, i) => i + 1).map((n) => (
                 <option key={n} value={n}>
                   {n}
@@ -136,6 +158,24 @@ export default function ColorSyncPage() {
             </select>
           </label>
         </form>
+
+        {/* Candidate-pool scope: choose playlists, and opt liked songs back in
+            (matching excludes them by default). Kept on one tidy row. */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '1em', flexWrap: 'wrap', marginTop: '0.75em' }}>
+          <PlaylistSelector
+            playlists={playlists}
+            selected={selectedPlaylistIds}
+            onChange={setSelectedPlaylistIds}
+          />
+          <label className="control-label" style={{ cursor: 'pointer' }}>
+            <input
+              type="checkbox"
+              checked={!excludeLiked}
+              onChange={(e) => setExcludeLiked(!e.target.checked)}
+            />
+            Include liked songs
+          </label>
+        </div>
 
         {searchResults && (
           <div style={{ marginTop: '0.75em', border: '1px solid #444', borderRadius: 8, maxHeight: 260, overflowY: 'auto' }}>
@@ -181,7 +221,7 @@ export default function ColorSyncPage() {
         </div>
       )}
 
-      {loading && <p>Extracting palettes and finding colour matches… (first run can take a bit)</p>}
+      {loading && <LoadingModule label="Extracting palettes and finding colour matches…" />}
       {error && <p style={{ color: '#f87171' }}>{error}</p>}
       {!loading && !error && result && albums.length === 0 && (
         <p>No colour matches found in your library.</p>

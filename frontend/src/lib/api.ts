@@ -56,8 +56,39 @@ async function errorFrom(response: Response, fallback: string): Promise<Error> {
   }
 }
 
-export async function getLibraryAlbums(limit: number): Promise<RankedAlbum[]> {
-  const response = await apiCall(`/library/library-albums?limit=${limit}`)
+export interface Playlist {
+  id: string
+  name: string
+  track_count: number | null
+  image_url: string | null
+}
+
+export async function getPlaylists(): Promise<Playlist[]> {
+  const response = await apiCall('/library/playlists')
+  if (!response.ok) {
+    throw await errorFrom(response, 'Failed to fetch playlists')
+  }
+  const data = await response.json()
+  return data.playlists
+}
+
+/** Serialise a playlist selection into query params.
+ *  null → all playlists (send nothing); [] → none (empty sentinel the backend
+ *  reads as "no playlists"); otherwise one param per chosen playlist. */
+function playlistParams(playlistIds: string[] | null): string {
+  if (playlistIds === null) return ''
+  if (playlistIds.length === 0) return '&playlist_ids='
+  return playlistIds.map((id) => `&playlist_ids=${encodeURIComponent(id)}`).join('')
+}
+
+export async function getLibraryAlbums(
+  limit: number,
+  excludeLiked = false,
+  playlistIds: string[] | null = null
+): Promise<RankedAlbum[]> {
+  const response = await apiCall(
+    `/library/library-albums?limit=${limit}&exclude_liked=${excludeLiked}${playlistParams(playlistIds)}`
+  )
   if (!response.ok) {
     throw await errorFrom(response, 'Failed to fetch library albums')
   }
@@ -119,10 +150,14 @@ export interface ColorSyncResult {
 
 export async function getColorSyncRecommendations(
   seedAlbumId: string | null,
-  limit: number
+  limit: number,
+  excludeLiked = true,
+  playlistIds: string[] | null = null
 ): Promise<ColorSyncResult> {
   const seedParam = seedAlbumId ? `&seed_album_id=${seedAlbumId}` : ''
-  const response = await apiCall(`/colorsync/recommendations?limit=${limit}${seedParam}`)
+  const response = await apiCall(
+    `/colorsync/recommendations?limit=${limit}&exclude_liked=${excludeLiked}${playlistParams(playlistIds)}${seedParam}`
+  )
   if (!response.ok) {
     throw await errorFrom(response, 'Failed to load colour matches')
   }
