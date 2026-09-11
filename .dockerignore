@@ -1,0 +1,30 @@
+# Keep the build context small and reproducible. node_modules and dist are
+# rebuilt inside the image; caches and secrets must never ship in it.
+.git
+.gitignore
+.claude
+docs
+README.md
+docker-compose.yml
+
+# Node (frontend build regenerates these in-image)
+**/node_modules
+frontend/dist
+frontend/.vite
+**/*.tsbuildinfo
+
+# Python
+**/__pycache__
+**/*.py[cod]
+**/.pytest_cache
+**/.venv
+**/venv
+
+# Env / secrets — provided at runtime via Fly secrets, never baked in
+**/.env
+**/.env.*
+
+# OS / editor
+.DS_Store
+.vscode
+.idea
