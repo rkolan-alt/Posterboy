@@ -20,7 +20,7 @@ frontend/.vite
 **/.venv
 **/venv
 
-# Env / secrets — provided at runtime via Fly secrets, never baked in
+# Env / secrets — provided at runtime via Secret Manager, never baked in
 **/.env
 **/.env.*
 
