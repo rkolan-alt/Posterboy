@@ -1,5 +1,5 @@
 # Production image: builds the React frontend, then serves it and the API from
-# a single FastAPI process (single-origin). Used by Fly.io; local dev still uses
+# a single FastAPI process (single-origin). Used by Cloud Run; local dev still uses
 # the per-service Dockerfiles in backend/ and frontend/ via docker-compose.
 #
 # Build context is the repo root: `docker build -t posterboy .`
@@ -34,5 +34,6 @@ COPY backend/ ./
 COPY --from=frontend /fe/dist ./app/static
 
 EXPOSE 8000
-# No --reload in production.
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+# No --reload in production. Cloud Run injects $PORT and expects the app to
+# honour it; the 8000 fallback keeps docker-compose and local runs unchanged.
+CMD ["sh", "-c", "exec uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000}"]

@@ -1,0 +1,156 @@
+# CI + deploy for the single-origin Posterboy app.
+#
+# Pull requests run the checks only. Pushes to main run the checks, build the
+# root Dockerfile, push it to Artifact Registry, and roll out a new Cloud Run
+# revision.
+#
+# One-time setup (repo variables, repo secrets, GCP resources) is in
+# docs/DEPLOY.md.
+name: Deploy
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+# One deploy at a time. A newer push supersedes a queued run, but never
+# cancels a rollout that is already mid-flight.
+concurrency:
+  group: deploy-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  SERVICE: posterboy
+  REPOSITORY: posterboy   # Artifact Registry repo name
+
+jobs:
+  backend:
+    name: Backend tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+          cache: pip
+          cache-dependency-path: backend/requirements.txt
+
+      - name: Install dependencies
+        working-directory: backend
+        run: pip install -r requirements.txt
+
+      # The suite is pure (colour + ranking maths): no Postgres, no Chromium.
+      - name: Run pytest
+        working-directory: backend
+        run: pytest
+
+  frontend:
+    name: Frontend build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install dependencies
+        working-directory: frontend
+        run: npm ci
+
+      # `npm run build` is `tsc -b && vite build`, so this is the type check too.
+      - name: Build
+        working-directory: frontend
+        run: npm run build
+
+  deploy:
+    name: Deploy to Cloud Run
+    needs: [backend, frontend]
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    environment: production
+    permissions:
+      contents: read
+      id-token: write   # required to mint the Workload Identity Federation token
+    steps:
+      - uses: actions/checkout@v4
+
+      # Keyless auth: no long-lived service-account JSON lives in this repo.
+      - id: auth
+        uses: google-github-actions/auth@v2
+        with:
+          project_id: ${{ vars.GCP_PROJECT_ID }}
+          workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
+
+      - uses: google-github-actions/setup-gcloud@v2
+
+      - name: Configure Docker for Artifact Registry
+        run: gcloud auth configure-docker ${{ vars.GCP_REGION }}-docker.pkg.dev --quiet
+
+      - id: image
+        name: Resolve image name
+        run: echo "name=${{ vars.GCP_REGION }}-docker.pkg.dev/${{ vars.GCP_PROJECT_ID }}/${REPOSITORY}/${SERVICE}" >> "$GITHUB_OUTPUT"
+
+      # Built on the runner rather than Cloud Build, so the layer cache (npm ci,
+      # pip install, the Chromium download) carries across runs for free.
+      - name: Build and push image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          tags: |
+            ${{ steps.image.outputs.name }}:${{ github.sha }}
+            ${{ steps.image.outputs.name }}:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      # FRONTEND_URL and SPOTIFY_REDIRECT_URI must point at the service's own
+      # URL, which does not exist until the service does. So: reuse the current
+      # URL when there is one, deploy with a placeholder on the very first run,
+      # then patch the real URL in below.
+      - id: deploy
+        name: Deploy revision
+        run: |
+          set -euo pipefail
+          REGION='${{ vars.GCP_REGION }}'
+          URL=$(gcloud run services describe "$SERVICE" --region "$REGION" \
+                  --format='value(status.url)' 2>/dev/null || true)
+          URL=${URL:-https://placeholder.invalid}
+
+          # gen2 gives Chromium a /dev/shm sized to the memory limit; on gen1 the
+          # 64MB default crashes the renderer on larger posters.
+          gcloud run deploy "$SERVICE" \
+            --image '${{ steps.image.outputs.name }}:${{ github.sha }}' \
+            --region "$REGION" \
+            --platform managed \
+            --execution-environment gen2 \
+            --allow-unauthenticated \
+            --memory 2Gi \
+            --cpu 1 \
+            --timeout 300 \
+            --min-instances 0 \
+            --max-instances 3 \
+            --set-env-vars "COOKIE_SECURE=true,COOKIE_SAMESITE=lax,FRONTEND_URL=$URL,SPOTIFY_REDIRECT_URI=$URL/api/auth/callback" \
+            --set-secrets "SPOTIFY_CLIENT_ID=spotify-client-id:latest,SPOTIFY_CLIENT_SECRET=spotify-client-secret:latest,SESSION_SECRET=session-secret:latest,DATABASE_URL=database-url:latest" \
+            --quiet
+
+          NEW_URL=$(gcloud run services describe "$SERVICE" --region "$REGION" \
+                      --format='value(status.url)')
+          if [ "$NEW_URL" != "$URL" ]; then
+            echo "First deploy: patching self-referential URLs to $NEW_URL"
+            gcloud run services update "$SERVICE" --region "$REGION" --quiet \
+              --update-env-vars "FRONTEND_URL=$NEW_URL,SPOTIFY_REDIRECT_URI=$NEW_URL/api/auth/callback"
+          fi
+          echo "url=$NEW_URL" >> "$GITHUB_OUTPUT"
+
+      - name: Smoke test
+        run: curl --fail --silent --show-error --retry 5 --retry-all-errors '${{ steps.deploy.outputs.url }}/health'
+
+      - name: Summary
+        run: echo "Deployed to ${{ steps.deploy.outputs.url }}" >> "$GITHUB_STEP_SUMMARY"

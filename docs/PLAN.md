@@ -33,7 +33,7 @@ The user wants to build a tool that connects to a user's Spotify account and gen
 
 **Auth: server-side session, referenced by an opaque HttpOnly cookie** (not JWT — Spotify's access/refresh token pair needs a reliable server-side home for refresh updates; stuffing them into a JWT buys nothing). On OAuth callback, exchange code → tokens, store in `users` table (encrypt refresh token at rest), set a signed session-ID cookie. A dependency checks token `expires_at` before any Spotify call and transparently refreshes if needed. Cookie `SameSite`/`Secure` flags driven by env var, since local dev (same-site, different ports) and prod (Vercel↔Fly.io, cross-site) need different settings — directly reuses the reference repo's insight here.
 
-**Database: Postgres** (Fly Postgres, co-located with backend). Key tables:
+**Database: Postgres** (external managed instance, e.g. Neon/Supabase). Key tables:
 - `users` — spotify_user_id, display_name, encrypted access/refresh tokens, token_expires_at
 - `top_tracks_cache` — user_id, time_range, jsonb payload, TTL ~1hr (cheap to refetch, avoid hammering Spotify on every page load)
 - `albums` — shared cache, spotify album id (pk), name, artist, image_url, explicit flag, tracklist jsonb, spotify_uri — effectively permanent, not user-specific
@@ -52,7 +52,7 @@ The user wants to build a tool that connects to a user's Spotify account and gen
 - Components: `PosterTemplate` (visual spec, mirrors server template), `PosterCard` (grid thumbnail + loading state), `ColorSwatchStrip`, `AlbumSearchPicker`, small controlled form inputs
 - `downloadPoster(albumId)` — thin helper that hits `.../render.png` and triggers a download (actual PNG generation is server-side)
 
-**Deployment:** Vercel (frontend) + Fly.io (backend, **Docker image based on `mcr.microsoft.com/playwright/python`** for the bundled Chromium needed by rendering) + Fly Postgres. GitHub Actions: lint/typecheck+build for frontend (Vercel auto-deploys via its GitHub integration), lint/typecheck/test+`flyctl deploy` for backend. Required secrets: `SPOTIFY_CLIENT_ID/SECRET`, `SESSION_SECRET`, `DATABASE_URL`, `FLY_API_TOKEN`, `VITE_API_BASE_URL`.
+**Deployment:** single-origin Google Cloud Run service — the root `Dockerfile` builds the Vite frontend and serves it from the same FastAPI process as the API, so there is no cross-origin hop and the session cookie stays first-party. Postgres is external (Neon/Supabase). GitHub Actions runs the frontend build/typecheck and backend tests, then builds the image, pushes it to Artifact Registry, and rolls out a revision. See `docs/DEPLOY.md` for setup.
 
 ## Prerequisite manual setup (before any OAuth code can run)
 1. Register a Spotify Developer App at developer.spotify.com/dashboard → get Client ID/Secret.
