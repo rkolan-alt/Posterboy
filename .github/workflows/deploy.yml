@@ -97,6 +97,10 @@ jobs:
         name: Resolve image name
         run: echo "name=${{ vars.GCP_REGION }}-docker.pkg.dev/${{ vars.GCP_PROJECT_ID }}/${REPOSITORY}/${SERVICE}" >> "$GITHUB_OUTPUT"
 
+      # The default builder uses the `docker` driver, which cannot export a
+      # cache; the cache-to below needs buildx's docker-container driver.
+      - uses: docker/setup-buildx-action@v3
+
       # Built on the runner rather than Cloud Build, so the layer cache (npm ci,
       # pip install, the Chromium download) carries across runs for free.
       - name: Build and push image
