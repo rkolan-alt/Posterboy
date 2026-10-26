@@ -1,11 +1,8 @@
-import { useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { useEffect, useState } from 'react'
 import type { PosterSpec } from '../lib/api'
 import { downloadPoster, getPosterSpec } from '../lib/api'
-import PosterTemplate from './PosterTemplate'
+import PosterPreview from './PosterPreview'
 
-// PosterTemplate renders at the Jinja template's natural width; the card scales
-// it down from there so the preview keeps the PNG's exact proportions.
-const POSTER_WIDTH = 1000
 
 // The fields a card needs to render, shared by every mode (Ranked, ColorSync).
 export interface PosterCardAlbum {
@@ -31,10 +28,6 @@ export default function PosterCard({
   const [spec, setSpec] = useState<PosterSpec | null>(null)
   const [specError, setSpecError] = useState<string | null>(null)
 
-  const frameRef = useRef<HTMLDivElement>(null)
-  const posterRef = useRef<HTMLDivElement>(null)
-  const [scale, setScale] = useState(0)
-
   useEffect(() => {
     let ignore = false
     getPosterSpec(album.album_id)
@@ -48,28 +41,6 @@ export default function PosterCard({
       ignore = true
     }
   }, [album.album_id])
-
-  // Fit the poster inside the square footprint the cover art used, so cards stay
-  // the size they were. The poster is portrait, so height is the binding
-  // constraint and it ends up narrower than the card with a gap either side.
-  // Child layout effects run first, so PosterTemplate has already shrunk its
-  // tracklist by the time we measure — the height we read is final.
-  useLayoutEffect(() => {
-    if (!spec) return
-
-    const measure = () => {
-      const frame = frameRef.current
-      const poster = posterRef.current
-      if (!frame || !poster || !poster.offsetHeight) return
-      setScale(
-        Math.min(frame.clientWidth / POSTER_WIDTH, frame.clientHeight / poster.offsetHeight)
-      )
-    }
-
-    measure()
-    window.addEventListener('resize', measure)
-    return () => window.removeEventListener('resize', measure)
-  }, [spec])
 
   const handleDownload = async () => {
     setDownloading(true)
@@ -101,32 +72,7 @@ export default function PosterCard({
     >
       <div style={{ position: 'relative', width: '100%' }}>
         {spec ? (
-          <div
-            ref={frameRef}
-            style={{
-              position: 'relative',
-              width: '100%',
-              aspectRatio: '1 / 1',
-              overflow: 'hidden',
-              borderRadius: '4px',
-            }}
-          >
-            <div
-              ref={posterRef}
-              style={{
-                position: 'absolute',
-                top: '50%',
-                left: '50%',
-                width: POSTER_WIDTH,
-                transformOrigin: 'center',
-                transform: `translate(-50%, -50%) scale(${scale})`,
-                // Hidden until measured, otherwise it flashes at full size.
-                visibility: scale ? 'visible' : 'hidden',
-              }}
-            >
-              <PosterTemplate spec={spec} />
-            </div>
-          </div>
+          <PosterPreview spec={spec} />
         ) : (
           // Cover art stands in until the spec lands, so the grid does not jump.
           <div
@@ -169,7 +115,7 @@ export default function PosterCard({
         {caption && <div style={{ opacity: 0.6, fontSize: '0.8em' }}>{caption}</div>}
       </div>
 
-      <button onClick={handleDownload} disabled={downloading} style={{ width: '100%' }}>
+      <button className="primary" onClick={handleDownload} disabled={downloading} style={{ width: '100%' }}>
         {downloading ? 'Rendering…' : 'Download Poster'}
       </button>
       {error && <div style={{ color: '#f87171', fontSize: '0.8em' }}>{error}</div>}

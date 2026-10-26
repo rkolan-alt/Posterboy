@@ -16,7 +16,7 @@ export default function ModeSelectPage() {
 
   useEffect(() => {
     getMe()
-      .then(setUser)
+      .then((currentUser) => { setUser(currentUser); navigate('/dashboard', { replace: true }) })
       .catch(() => navigate('/'))
       .finally(() => setLoading(false))
   }, [navigate])

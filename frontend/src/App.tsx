@@ -1,4 +1,5 @@
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom'
+import DemoPage from './pages/DemoPage'
 import LoginPage from './pages/LoginPage'
 import CallbackPage from './pages/CallbackPage'
 import ModeSelectPage from './pages/ModeSelectPage'
@@ -9,6 +10,7 @@ function App() {
   return (
     <Router>
       <Routes>
+        <Route path="/demo" element={<DemoPage />} />
         <Route path="/" element={<LoginPage />} />
         <Route path="/callback" element={<CallbackPage />} />
         <Route path="/modes" element={<ModeSelectPage />} />
