@@ -100,7 +100,7 @@ export default function DashboardPage() {
 
   return (
     <div style={{ textAlign: 'left', width: '100%' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5em' }}>
+      <div className="app-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5em' }}>
         <div>
           <h1 style={{ margin: 0 }}>Posterboy</h1>
           <p style={{ margin: 0, opacity: 0.7, fontSize: '0.9em' }}>
@@ -108,7 +108,8 @@ export default function DashboardPage() {
           </p>
         </div>
         <div style={{ display: 'flex', gap: '0.5em' }}>
-          <button onClick={() => navigate('/modes')}>← Modes</button>
+          <button onClick={() => navigate('/dashboard')} aria-pressed={location.pathname === '/dashboard'}>Your albums</button>
+          <button onClick={() => navigate('/colorsync')} aria-pressed={location.pathname === '/colorsync'}>ColorSync</button>
           <button onClick={handleLogout}>Log out</button>
         </div>
       </div>
@@ -118,7 +119,7 @@ export default function DashboardPage() {
           Rank by:
           <select className="control-pill" value={mode} onChange={(e) => setMode(e.target.value as Mode)}>
             <option value="library">Full library (liked songs + playlists)</option>
-            <option value="top">Recently played</option>
+            <option value="top">Top tracks</option>
           </select>
         </label>
 
@@ -145,7 +146,7 @@ export default function DashboardPage() {
         </label>
 
         {/* Playlist scope + Liked Songs toggle only apply to the full-library
-            crawl; "Recently played" (top) mode uses neither. */}
+            crawl; "Top tracks" (top) mode uses neither. */}
         {mode === 'library' && (
           <>
             <PlaylistSelector
@@ -176,6 +177,7 @@ export default function DashboardPage() {
           the fetch just shows the user stale data. */}
       {!albumsLoading && !albumsError && visibleAlbums.length > 0 && (
         <div
+          className="app-grid"
           style={{
             display: 'grid',
             // minmax(0, 1fr), not 1fr: plain 1fr is minmax(auto, 1fr), whose

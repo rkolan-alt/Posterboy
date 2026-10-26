@@ -155,3 +155,16 @@ existing one. Adding a table is safe, but **adding a column to an existing model
 will not reach the deployed database**. Until Alembic is wired up, new data
 belongs in a new table or inside an existing `JSONB` payload — the approach
 `db/models.py` already takes for cached palettes.
+
+## Public demo
+
+The landing page links to `/demo`, a public collection of six real albums
+with cover artwork and metadata sourced from the Apple Music/iTunes catalog. Visitors can switch between the collection and a sample
+colour-matching mode, inspect posters, and download static PNGs without Spotify
+authentication or API calls. The demo uses a simple RGB palette comparison; the
+authenticated ColorSync feature continues to use perceptual CIEDE2000 matching.
+
+Sample data lives in `frontend/src/demo/albums.ts`; artwork and pre-rendered
+downloads live in `frontend/public/demo/`. The demo and signed-in cards share
+`PosterPreview` and `PosterTemplate`. If the poster template or sample data
+changes, regenerate the sample PNGs to keep downloads consistent with previews.

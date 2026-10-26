@@ -90,10 +90,11 @@ export default function ColorSyncPage() {
     e.preventDefault()
     if (!query.trim()) return
     setSearching(true)
+    setError(null)
     try {
       setSearchResults(await searchAlbums(query.trim()))
     } catch {
-      setSearchResults([])
+      setError('Album search failed. Please try again.')
     } finally {
       setSearching(false)
     }
@@ -117,7 +118,7 @@ export default function ColorSyncPage() {
 
   return (
     <div style={{ textAlign: 'left', width: '100%' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5em' }}>
+      <div className="app-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5em' }}>
         <div>
           <h1 style={{ margin: 0 }}>ColorSync</h1>
           <p style={{ margin: 0, opacity: 0.7, fontSize: '0.9em' }}>
@@ -125,7 +126,8 @@ export default function ColorSyncPage() {
           </p>
         </div>
         <div style={{ display: 'flex', gap: '0.5em' }}>
-          <button onClick={() => navigate('/modes')}>← Modes</button>
+          <button onClick={() => navigate('/dashboard')} aria-pressed={location.pathname === '/dashboard'}>Your albums</button>
+          <button onClick={() => navigate('/colorsync')} aria-pressed={location.pathname === '/colorsync'}>ColorSync</button>
           <button onClick={handleLogout}>Log out</button>
         </div>
       </div>
@@ -233,6 +235,7 @@ export default function ColorSyncPage() {
             ΔE is the perceptual colour distance to the seed — lower is a closer match.
           </p>
           <div
+            className="app-grid"
             style={{
               display: 'grid',
               // minmax(0, 1fr), not 1fr: plain 1fr is minmax(auto, 1fr), whose
